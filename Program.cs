@@ -1,8 +1,15 @@
+using Microsoft.EntityFrameworkCore;
+using StoriesSpain.Models;
+using Microsoft.AspNetCore.Identity;
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
+builder.Services.AddControllers();
+builder.Services.AddDbContext<BookAppContext>(options =>
+    options.UseSqlite(builder.Configuration.GetConnectionString("Connection")));
+
 
 var app = builder.Build();
 
@@ -13,6 +20,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+app.UseAuthorization(); //needed for when using identity
 
 var summaries = new[]
 {
