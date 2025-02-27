@@ -6,7 +6,9 @@ namespace StoriesSpain.Models
         public int BookId { get; set;}
         public int GenreId {get; set ;}
         
-        public Book Book { get; set;}
-        public Genre Genre { get; set;}
+        public required Book Book { get; set;}
+        public required Genre Genre { get; set;}
+        //non-nullable properties. When a book is created it should have a genre. And 
+        //other details filled.
     }
 }

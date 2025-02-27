@@ -21,6 +21,7 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 app.UseAuthorization(); //needed for when using identity
+app.MapControllers();
 
 var summaries = new[]
 {

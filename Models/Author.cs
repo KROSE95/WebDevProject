@@ -5,8 +5,9 @@ namespace StoriesSpain.Models
     public class Author
     {
         public int AuthorId { get; set;}//primary key
-        public string Name { get; set;}
+        public string AuthorName { get; set;} = string.Empty;
 
-        public ICollection<AuthorBook> AuthorBooks {get; set;}
+        public ICollection<AuthorBook> AuthorBooks {get; set;} = new List<AuthorBook>();
+    //initialises to prevent null reference errors.
     }
 }

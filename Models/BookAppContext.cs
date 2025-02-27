@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace StoriesSpain.Models
 {
-    public class BookAppContext : IdentityDbContext<IdentityUser>
+    public class BookAppContext : IdentityDbContext<ApplicationUser>
     {
         public BookAppContext(DbContextOptions<BookAppContext> options) : base(options) 
         { 
