@@ -1,12 +1,18 @@
-using StoriesSpain.Models;
-using StoriesSpain.Services; 
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
-using StoriesSpain.DTOs;
-using System.IdentityModel.Tokens.Jwt;
-using System.Security.Claims;
+using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
+using System;
+using System.Collections.Generic;
+using System.IdentityModel.Tokens.Jwt;
+using System.Linq;
+using System.Security.Claims;
 using System.Text;
+using System.Threading.Tasks;
+using StoriesSpain.Models;
+using StoriesSpain.Services;
+using StoriesSpain.DTOs;
 
 
 namespace StoriesSpain.Controllers
@@ -17,18 +23,18 @@ namespace StoriesSpain.Controllers
     {
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly SignInManager<ApplicationUser> _signInManager;
-        private readonly IConfiguration _configuration;
-       
         private readonly EmailService _emailService;
+        private readonly IConfiguration _configuration;
 
-         public AccountController(UserManager<ApplicationUser> userManager, SignInManager<ApplicationUser> signInManager, IConfiguration configuration, EmailService emailService)
+
+        public AccountController(UserManager<ApplicationUser> userManager, SignInManager<ApplicationUser> signInManager, EmailService emailService, IConfiguration configuration)
         {
             _userManager = userManager;
             _signInManager = signInManager;
+            _emailService = emailService;
             _configuration = configuration;
-            _emailService = emailService; 
         }
-        
+
 
         [HttpPost("register")]
         public async Task<IActionResult> Register([FromBody] RegisterModel model)
@@ -36,28 +42,34 @@ namespace StoriesSpain.Controllers
             var user = new ApplicationUser { UserName = model.Email, Email = model.Email };
             var result = await _userManager.CreateAsync(user, model.Password);
 
-            if (!result.Succeeded)
+            if (result.Succeeded)
             {
-                return BadRequest(result.Errors);
+                // Generate an email verification token
+                var token = await _userManager.GenerateEmailConfirmationTokenAsync(user);
+                // Create the verification link
+                var verificationLink = Url.Action("VerifyEmail", "Account", new
+                {
+                    userId = user.Id,
+                    token = token
+                }, Request.Scheme);
+                // Send the verification email
+                var emailSubject = "Email Verification";
+                var emailBody = $"Please verify your email by clicking the following link: {verificationLink}";
+                _emailService.SendEmail(user.Email, emailSubject, emailBody);
+
+                return Ok("User registered successfully. An email verification link has been sent.");
             }
-
-            // Generate email confirmation token
-            var token = await _userManager.GenerateEmailConfirmationTokenAsync(user);
-            var confirmationLink = $"{_configuration["AppSettings:FrontendBaseUrl"]}/confirm-email?userId={user.Id}&token={token}";
-
-            // Send email
-            _emailService.SendEmail(user.Email, "Confirm Your Email","$Please confirm your email by clicking <a href='{confirmationLink}'>here</a>.");
-
-            return Ok(new { message = "User registered. Please check your email to confirm." });
+            return BadRequest(result.Errors);
         }
 
-        [HttpGet("confirm-email")]
-        public async Task<IActionResult> ConfirmEmail(string userId, string token)
+        //handles email verification
+        [HttpGet("verify-email")]
+        public async Task<IActionResult> VerifyEmail(string userId, string token)
         {
             var user = await _userManager.FindByIdAsync(userId);
             if (user == null)
             {
-                return BadRequest("Invalid user.");
+                return NotFound("User not found.");
             }
 
             var result = await _userManager.ConfirmEmailAsync(user, token);
@@ -70,42 +82,75 @@ namespace StoriesSpain.Controllers
 
 
         [HttpPost("login")]
-        public async Task<IActionResult> Login([FromBody] LoginModel model)
+        public async Task<IActionResult> Login(LoginModel model)
         {
-            var user = await _userManager.FindByEmailAsync(model.Email);
-            if (user == null)
+
+            var result = await _signInManager.PasswordSignInAsync(model.Email, model.Password,
+isPersistent: false, lockoutOnFailure: false);
+            if (result.Succeeded)
             {
-                return Unauthorized(new { message = "Invalid credentials" });
+                var user = await _userManager.FindByEmailAsync(model.Email);
+                var roles = await _userManager.GetRolesAsync(user);
+                var token = GenerateJwtToken(user, roles);
+                return Ok(new { Token = token });
+            }
+            return Unauthorized("Invalid login attempt.");
+        }
+        [HttpPost("logout")]
+        public async Task<IActionResult> Logout()
+        {
+            await _signInManager.SignOutAsync();
+            return Ok("Logged out");
+        }
+
+
+
+
+        // Generate JWT Token
+        private string GenerateJwtToken(ApplicationUser user, IList<string> roles)
+        {
+            var Claims = new List<Claim>
+     {
+                new Claim(JwtRegisteredClaimNames.Sub, user.Email ?? string.Empty),
+                new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+            };
+
+            // Add user roles to the token
+            foreach (var role in roles)
+            {
+                Claims.Add(new Claim(ClaimTypes.Role, role));
             }
 
-            var result = await _signInManager.PasswordSignInAsync(user.UserName, model.Password, false, false);
-            if (!result.Succeeded)
-            {
-                return Unauthorized(new { message = "Invalid credentials" });
-            }
-
-            // Generate JWT Token
-            var authClaims = new List<Claim>
-        {
-            new Claim(ClaimTypes.Name, user.UserName),
-            new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
-        };
-
-            var authSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Secret"]));
+            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"] ?? "DefaultSecretKey1234567890"));
+            var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+            var expires = DateTime.Now.AddHours(Convert.ToDouble(_configuration["Jwt:ExpireHours"]));
 
             var token = new JwtSecurityToken(
-                issuer: _configuration["Jwt:Issuer"],
-                audience: _configuration["Jwt:Audience"],
-                expires: DateTime.Now.AddHours(3),
-                claims: authClaims,
-                signingCredentials: new SigningCredentials(authSigningKey, SecurityAlgorithms.HmacSha256)
+                _configuration["Jwt:Issuer"],
+                _configuration["Jwt:Issuer"],
+                Claims,
+                expires: expires,
+                signingCredentials: creds
             );
 
-            return Ok(new
-            {
-                token = new JwtSecurityTokenHandler().WriteToken(token),
-                expiration = token.ValidTo
-            });
-        }
+            return new JwtSecurityTokenHandler().WriteToken(token);
+        // [HttpDelete("delete-user/{email}")]
+        // public async Task<IActionResult> DeleteUser(string email)
+        // {
+        //     var user = await _userManager.FindByEmailAsync(email);
+        //     if (user == null)
+        //     {
+        //         return NotFound("User not found.");
+        //     }
+
+        //     var result = await _userManager.DeleteAsync(user);
+        //     if (result.Succeeded)
+        //     {
+        //         return Ok("User deleted successfully.");
+        //     }
+
+        //     return BadRequest("Error deleting user.");
+        // } used to de-register while practicing.
+
     }
-}
+}}

@@ -293,3 +293,4 @@
 /Users/kayley/StoriesSpain/bin/Debug/net9.0/MailKit.dll
 /Users/kayley/StoriesSpain/bin/Debug/net9.0/MimeKit.dll
 /Users/kayley/StoriesSpain/bin/Debug/net9.0/BouncyCastle.Crypto.dll
+/Users/kayley/StoriesSpain/bin/Debug/net9.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll
