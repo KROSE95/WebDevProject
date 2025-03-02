@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using StoriesSpain.Models;
 using Microsoft.AspNetCore.Identity;
+using StoriesSpain.Services;
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
@@ -9,6 +10,13 @@ builder.Services.AddOpenApi();
 builder.Services.AddControllers();
 builder.Services.AddDbContext<BookAppContext>(options =>
     options.UseSqlite(builder.Configuration.GetConnectionString("Connection")));
+builder.Services.AddIdentity<ApplicationUser, IdentityRole>()
+    .AddEntityFrameworkStores<BookAppContext>()
+    .AddDefaultTokenProviders();
+//to register email service for us in account controller
+builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("EmailSettings"));
+builder.Services.AddScoped<EmailService>();
+
 
 
 var app = builder.Build();
