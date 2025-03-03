@@ -82,75 +82,93 @@ namespace StoriesSpain.Controllers
 
 
         [HttpPost("login")]
+
         public async Task<IActionResult> Login(LoginModel model)
         {
-
-            var result = await _signInManager.PasswordSignInAsync(model.Email, model.Password,
-isPersistent: false, lockoutOnFailure: false);
-            if (result.Succeeded)
+            var user = await _userManager.FindByEmailAsync(model.Email);
+            if (user == null)
             {
-                var user = await _userManager.FindByEmailAsync(model.Email);
-                var roles = await _userManager.GetRolesAsync(user);
-                var token = GenerateJwtToken(user, roles);
-                return Ok(new { Token = token });
+                return Unauthorized(new { message = "Invalid credentials: User not found." });
             }
-            return Unauthorized("Invalid login attempt.");
+
+            if (!user.EmailConfirmed)
+            {
+                return Unauthorized(new { message = "Please confirm your email before logging in." });
+            }
+
+            var result = await _signInManager.PasswordSignInAsync(user.UserName ?? string.Empty, model.Password, false, false);
+            if (!result.Succeeded)
+            {
+                return Unauthorized(new { message = "Invalid credentials." });
+            }
+
+            //recommended to move so user is checked to see if null before calling usermanager
+            var roles = await _userManager.GetRolesAsync(user);
+            if (roles == null) roles = new List<string>();
+           //ensuring user isnt null before calling generatJwtToken
+            var token = user != null ? GenerateJwtToken(user, roles) : string.Empty;
+            if (string.IsNullOrEmpty(token))
+            {
+                return BadRequest(new { message = "Failed to generate token." });
+            }
+
+            return Ok(new { Token = token });
         }
+
+
         [HttpPost("logout")]
         public async Task<IActionResult> Logout()
         {
             await _signInManager.SignOutAsync();
             return Ok("Logged out");
         }
-
-
-
-
         // Generate JWT Token
         private string GenerateJwtToken(ApplicationUser user, IList<string> roles)
         {
-            var Claims = new List<Claim>
-     {
-                new Claim(JwtRegisteredClaimNames.Sub, user.Email ?? string.Empty),
+            var claims = new List<Claim>
+     {          
+                new Claim(JwtRegisteredClaimNames.Sub, user.Id),
+                new Claim(JwtRegisteredClaimNames.Email, user.Email ?? string.Empty),
                 new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
             };
 
             // Add user roles to the token
             foreach (var role in roles)
             {
-                Claims.Add(new Claim(ClaimTypes.Role, role));
+                claims.Add(new Claim(ClaimTypes.Role, role));
             }
 
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"] ?? "DefaultSecretKey1234567890"));
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
-            var expires = DateTime.Now.AddHours(Convert.ToDouble(_configuration["Jwt:ExpireHours"]));
+            var expires = DateTime.Now.AddHours(Convert.ToDouble(_configuration["Jwt:ExpireHours"] ?? "1"));
 
             var token = new JwtSecurityToken(
                 _configuration["Jwt:Issuer"],
                 _configuration["Jwt:Issuer"],
-                Claims,
+                claims,
                 expires: expires,
                 signingCredentials: creds
             );
 
             return new JwtSecurityTokenHandler().WriteToken(token);
-        // [HttpDelete("delete-user/{email}")]
-        // public async Task<IActionResult> DeleteUser(string email)
-        // {
-        //     var user = await _userManager.FindByEmailAsync(email);
-        //     if (user == null)
-        //     {
-        //         return NotFound("User not found.");
-        //     }
+            // [HttpDelete("delete-user/{email}")]
+            // public async Task<IActionResult> DeleteUser(string email)
+            // {
+            //     var user = await _userManager.FindByEmailAsync(email);
+            //     if (user == null)
+            //     {
+            //         return NotFound("User not found.");
+            //     }
 
-        //     var result = await _userManager.DeleteAsync(user);
-        //     if (result.Succeeded)
-        //     {
-        //         return Ok("User deleted successfully.");
-        //     }
+            //     var result = await _userManager.DeleteAsync(user);
+            //     if (result.Succeeded)
+            //     {
+            //         return Ok("User deleted successfully.");
+            //     }
 
-        //     return BadRequest("Error deleting user.");
-        // } used to de-register while practicing.
+            //     return BadRequest("Error deleting user.");
+            // } used to de-register while practicing.
 
+        }
     }
-}}
+}

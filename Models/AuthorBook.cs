@@ -9,9 +9,9 @@ namespace StoriesSpain.Models
         
         public int AuthorId { get; set;}
 
-        public required Book Book { get; set;} // navigation property to access full book details
+        public Book ? Book { get; set;} // navigation property to access full book details
 
-        public required Author Author { get; set;}
+        public Author ? Author { get; set;}
         //ensures every entry in authorbook has a book and author associated.
     }
 }

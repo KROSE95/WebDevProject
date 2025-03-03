@@ -69,7 +69,11 @@ namespace StoriesSpain.Controllers
             {
                 return NotFound("Role not found.");
             }
-
+            // to prevent updating the admin role for security
+            if (role.Name == "Admin")
+            {
+                return BadRequest("Cannot modify the Admin role.");
+            }
             role.Name = model.NewRoleName;
             var result = await _roleManager.UpdateAsync(role);
 
@@ -80,7 +84,7 @@ namespace StoriesSpain.Controllers
 
             return BadRequest(result.Errors);
         }
-        [HttpDelete]
+        [HttpDelete("{roleId}")]
         public async Task<IActionResult> DeleteRole(string roleId)
         {
             var role = await _roleManager.FindByIdAsync(roleId);

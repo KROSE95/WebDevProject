@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -75,13 +76,54 @@ namespace StoriesSpain.Controllers
         // POST: api/Bookmarks
         // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
         [HttpPost]
-        public async Task<ActionResult<Bookmark>> PostBookmark(Bookmark bookmark)
+        public async Task<IActionResult> AddBookmark([FromBody] Bookmark bookmark)
         {
-            _context.Bookmarks.Add(bookmark);
-            await _context.SaveChangesAsync();
+            if (bookmark == null || bookmark.BookId == 0)
+            {
+                return BadRequest("Invalid request data.");
+            }
+            //Log all claims to see what JWT is actually sending
+            Console.WriteLine("User Claims:");
+            foreach (var claim in User.Claims)
+            {
+                Console.WriteLine($"{claim.Type}: {claim.Value}");
+            }
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            Console.WriteLine($"Extracted UserId: {userId}");//get logged in user's ID from token
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Unauthorized("User not found.");
+            }
+            //ensure user exists
+            var userExists = await _context.Users.AnyAsync(u => u.Id == userId);
+            if (!userExists)
+            {
+                return NotFound("User does not exist.");
+            }
 
-            return CreatedAtAction("GetBookmark", new { id = bookmark.BookmarkId }, bookmark);
+            //  Ensure the book exists before adding the bookmark
+            var bookExists = await _context.Books.AnyAsync(b => b.BookId == bookmark.BookId);
+            if (!bookExists)
+            {
+                return NotFound("Book not found.");
+            }
+            // Assign UserId automatically from the logged-in user
+            bookmark.UserId = userId;
+
+            try
+            {
+                _context.Bookmarks.Add(bookmark);
+                await _context.SaveChangesAsync();
+                return Ok(new { message = "Bookmark added successfully.", bookmark });
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error: {ex.Message}");
+                return StatusCode(500, "An error occurred while saving the bookmark.");
+            }
         }
+
+
 
         // DELETE: api/Bookmarks/5
         [HttpDelete("{id}")]

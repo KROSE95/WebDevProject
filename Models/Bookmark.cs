@@ -10,8 +10,8 @@ namespace StoriesSpain.Models
 
         public string? Status { get; set;} // "ToBeRead" or "Finished"
         //set to nullable as might not be set immediately
-        public required ApplicationUser User { get; set;} //adjusted to applicationuser type
+        public ApplicationUser ? User { get; set;} //adjusted to applicationuser type
         // a user is always required to create a bookmark.
-        public required Book Book { get; set;}//a book is required to create a bookmark.
+        public Book? Book { get; set;}//a book is required to create a bookmark.
     }
 }
