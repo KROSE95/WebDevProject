@@ -11,7 +11,7 @@ Features that have been implemented are;
 - Token-based authentication (JWT)
 - CRUD operations for books, authors, and genres
 - Many-to-Many relationships (AuthorBook, GenreBook)
-- Secure password hashing and email confirmation
+
 
 To run the project you must
 - Clone the repository
